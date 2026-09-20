@@ -5,11 +5,13 @@ import com.google.adk.kt.models.Gemini
 import com.google.adk.kt.models.Model
 
 /**
- * The entry point that reads the environment. Everything it decides is passed explicitly to
+ * The entry point that reads configuration. Everything it decides is passed explicitly to
  * [buildHistorian], which is what the tests exercise. Built lazily so that merely referencing
  * this object does not demand an API key or a git repository.
  *
- * Environment:
+ * Configuration comes from the environment, or from a `.env` file — see [Settings].
+ *
+ *   GOOGLE_API_KEY       Gemini API key (required)
  *   HISTORIAN_REPO       repository to inspect (default: working directory)
  *   HISTORIAN_WIRING     DELEGATE | TOOL (default: DELEGATE)
  *   HISTORIAN_TRACE      1 to record and print a trace on exit
@@ -17,22 +19,27 @@ import com.google.adk.kt.models.Model
  */
 object HistorianAgent {
 
+    private val settings: Settings = Settings.load()
+
     private val repoPath: String =
-        System.getenv("HISTORIAN_REPO") ?: System.getProperty("user.dir")
+        settings["HISTORIAN_REPO"] ?: System.getProperty("user.dir")
 
     private val wiring: Wiring =
-        System.getenv("HISTORIAN_WIRING")?.uppercase()?.let(Wiring::valueOf) ?: Wiring.DELEGATE
+        settings["HISTORIAN_WIRING"]?.uppercase()?.let(Wiring::valueOf) ?: Wiring.DELEGATE
 
     val trace: TraceRecorder? =
-        if (System.getenv("HISTORIAN_TRACE") == "1") TraceRecorder() else null
+        if (settings["HISTORIAN_TRACE"] == "1") TraceRecorder() else null
 
     private val budget: ToolCallBudget? =
-        System.getenv("HISTORIAN_MAX_TOOLS")?.toIntOrNull()?.let(::ToolCallBudget)
+        settings["HISTORIAN_MAX_TOOLS"]?.toIntOrNull()?.let(::ToolCallBudget)
 
     private fun model(): Model = Gemini(
         name = "gemini-flash-latest",
-        apiKey = System.getenv("GOOGLE_API_KEY")
-            ?: error("GOOGLE_API_KEY is not set. Copy .env.example to .env and fill it in.")
+        apiKey = settings.require(
+            "GOOGLE_API_KEY",
+            "Get a key from https://aistudio.google.com/apikey, then either export it or "
+                + "put it in a .env file here or at ~/.config/git-repo-historian/.env",
+        ),
     )
 
     val rootAgent: LlmAgent by lazy {

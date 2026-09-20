@@ -1,1 +1,1 @@
-rootProject.name = "adk-playground"
+rootProject.name = "git-repo-historian"

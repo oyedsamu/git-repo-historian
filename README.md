@@ -17,21 +17,45 @@ framework against real data — tools, session state, human-in-the-loop confirma
 multi-agent patterns, workflow agents, and callbacks — and the notes below record the things
 that were not obvious from the documentation.
 
-## Running it
+## Install
 
-Requires JDK 21+ and a [Gemini API key](https://aistudio.google.com/apikey).
-
-```bash
-cp .env.example .env      # then put your key in it
-set -a && source .env && set +a
-./gradlew run
-```
-
-For the web UI with request/response inspection:
+**Homebrew** (macOS and Linux):
 
 ```bash
-./gradlew run -PmainClass=dev.sam.historian.WebMainKt   # http://localhost:8080
+brew install oyedsamu/tap/git-repo-historian
 ```
+
+**Manual** — download the archive from
+[Releases](https://github.com/oyedsamu/git-repo-historian/releases), unpack it, and put
+`bin/git-repo-historian` on your `PATH`. Requires **Java 21+** (`brew install openjdk@21`).
+
+**From source**:
+
+```bash
+./gradlew installDist    # build/install/git-repo-historian/bin/git-repo-historian
+```
+
+### Set your API key, once
+
+The tool talks to Gemini, so you need your own key from
+[AI Studio](https://aistudio.google.com/apikey) — it is free for this kind of use.
+
+```bash
+mkdir -p ~/.config/git-repo-historian
+echo "GOOGLE_API_KEY=your-key-here" > ~/.config/git-repo-historian/.env
+```
+
+A `.env` in the current directory is read first, then `~/.config/git-repo-historian/.env`.
+A real environment variable beats both, so `GOOGLE_API_KEY=... git-repo-historian` works too.
+
+### Use it
+
+```bash
+cd ~/some/git/repo
+git-repo-historian
+```
+
+It inspects the current directory by default. Point it elsewhere with `HISTORIAN_REPO`.
 
 ### Configuration
 
@@ -42,6 +66,17 @@ For the web UI with request/response inspection:
 | `HISTORIAN_WIRING` | `DELEGATE` or `TOOL` — how the changelog writer is attached. |
 | `HISTORIAN_TRACE` | `1` to print an execution trace on exit. |
 | `HISTORIAN_MAX_TOOLS` | Refuse tool calls beyond this many. |
+
+### Development
+
+```bash
+./gradlew test      # 86 tests, no API key needed
+./gradlew run       # run from source
+./gradlew runWeb    # ADK dev UI on http://localhost:8080
+```
+
+The dev UI lives in its own `webui` source set, so Ktor and Netty stay out of the shipped
+distribution.
 
 ## What it can do
 
@@ -114,13 +149,16 @@ be thread-safe.
 **`git log` exits non-zero in a repository with no commits yet**, because there is no HEAD.
 That is an empty history, not a failure, and it must not throw out of a tool call.
 
+**macOS JVMs ignore `HOME` for `user.home`**, deriving it from the OS user record instead.
+That is wrong under `sudo -u`, in containers and in CI, so config lookup reads `HOME` first.
+
 ## Tests
 
 ```bash
 ./gradlew test
 ```
 
-67 tests, none of which call a model or need an API key. Three tiers:
+86 tests, none of which call a model or need an API key. Three tiers:
 
 - **Behaviour** against real throwaway git repositories built per test.
 - **Pure logic** at the seams — prompt builders, bookmark rules, trace span pairing. Anything
